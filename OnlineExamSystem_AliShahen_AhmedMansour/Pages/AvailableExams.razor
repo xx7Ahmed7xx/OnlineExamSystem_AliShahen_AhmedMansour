@@ -1,0 +1,60 @@
+@page "/exams"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@attribute [Authorize]
+
+<h3>Available Exams</h3>
+
+@if (exams == null)
+{
+    <p>Loading...</p>
+}
+else if (!exams.Any())
+{
+    <p>No exams are currently available.</p>
+}
+else
+{
+    <div class="row">
+        @foreach (var exam in exams)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">@exam.Title</h5>
+                        <p class="card-text">@exam.Description</p>
+                        <p class="card-text">
+                            <small class="text-muted">
+                                Questions: @exam.Questions?.Count
+                                <br />
+                                Passing Score: @exam.PassingPercentage%
+                            </small>
+                        </p>
+                        <button class="btn btn-primary" @onclick="() => StartExam(exam.Id)">Start Exam</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Exam> exams;
+
+    protected override async Task OnInitializedAsync()
+    {
+        exams = await Context.Exams
+            .Include(e => e.Questions)
+            .Where(e => e.IsActive)
+            .ToListAsync();
+    }
+
+    private void StartExam(int examId)
+    {
+        NavigationManager.NavigateTo($"/exam/{examId}");
+    }
+} 

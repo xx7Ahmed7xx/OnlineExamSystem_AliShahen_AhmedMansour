@@ -1,0 +1,98 @@
+@page "/my-results"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@using System.Security.Claims
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@attribute [Authorize]
+
+<h3>My Exam Results</h3>
+
+@if (userExams == null)
+{
+    <p>Loading...</p>
+}
+else if (!userExams.Any())
+{
+    <p>You haven't taken any exams yet.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Exam</th>
+                    <th>Date</th>
+                    <th>Score</th>
+                    <th>Correct Answers</th>
+                    <th>Total Questions</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var result in userExams)
+                {
+                    <tr>
+                        <td>@result.Exam.Title</td>
+                        <td>@(result.EndTime?.ToString() ?? "-")</td>
+                        <td>@result.Score%</td>
+                        <td>@result.CorrectAnswers</td>
+                        <td>@result.TotalQuestions</td>
+                        <td>
+                            <span class="badge @(result.HasPassed ? "bg-success" : "bg-danger")">
+                                @(result.HasPassed ? "Passed" : "Failed")
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<UserExam> userExams;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (!user.Identity.IsAuthenticated)
+            {
+                NavigationManager.NavigateTo("/account/login");
+                return;
+            }
+
+            // Get user email from claims - this is what we use as our identifier
+            var userEmail = user.FindFirst(ClaimTypes.Email)?.Value;
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                NavigationManager.NavigateTo("/account/login");
+                return;
+            }
+
+            await LoadUserExams(userEmail);
+        }
+        catch (Exception)
+        {
+            NavigationManager.NavigateTo("/account/login");
+        }
+    }
+
+    private async Task LoadUserExams(string userEmail)
+    {
+        userExams = await Context.UserExams
+            .Include(ue => ue.Exam)
+            .Where(ue => ue.User.Email == userEmail)
+            .OrderByDescending(ue => ue.EndTime)
+            .ToListAsync();
+    }
+} 

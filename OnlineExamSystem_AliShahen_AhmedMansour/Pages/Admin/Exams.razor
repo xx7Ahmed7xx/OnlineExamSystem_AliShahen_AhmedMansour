@@ -1,0 +1,71 @@
+@page "/admin/exams"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = "Admin")]
+
+<h3>Manage Exams</h3>
+
+<div class="mb-3">
+    <a href="/admin/exams/create" class="btn btn-primary">Create New Exam</a>
+</div>
+
+@if (exams == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Questions</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var exam in exams)
+            {
+                <tr>
+                    <td>@exam.Title</td>
+                    <td>@exam.Description</td>
+                    <td>@exam.Questions?.Count</td>
+                    <td>@(exam.IsActive ? "Active" : "Inactive")</td>
+                    <td>
+                        <a href="/admin/exams/@exam.Id/edit" class="btn btn-sm btn-primary">Edit</a>
+                        <a href="/admin/exams/@exam.Id/questions" class="btn btn-sm btn-info">Questions</a>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteExam(exam.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Exam> exams;
+
+    protected override async Task OnInitializedAsync()
+    {
+        exams = await Context.Exams
+            .Include(e => e.Questions)
+            .ToListAsync();
+    }
+
+    private async Task DeleteExam(int id)
+    {
+        var exam = await Context.Exams.FindAsync(id);
+        if (exam != null)
+        {
+            Context.Exams.Remove(exam);
+            await Context.SaveChangesAsync();
+            exams.Remove(exam);
+        }
+    }
+} 

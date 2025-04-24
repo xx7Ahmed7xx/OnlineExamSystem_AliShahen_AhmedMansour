@@ -1,9 +1,43 @@
 ﻿@page "/"
 
-<PageTitle>Index</PageTitle>
+<PageTitle>Online Exam System</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="text-center">
+    <h1 class="display-4">Welcome to Online Exam System</h1>
+    <p class="lead">A platform for taking and managing online examinations.</p>
+</div>
 
-Welcome to your new app.
-
-<SurveyPrompt Title="How is Blazor working for you?" />
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">For Students</h5>
+                <p class="card-text">Take exams and view your results.</p>
+                <AuthorizeView>
+                    <Authorized>
+                        <a href="/exams" class="btn btn-primary">View Available Exams</a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/Account/Login" class="btn btn-primary">Login to Start</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">For Administrators</h5>
+                <p class="card-text">Manage exams, questions, and users.</p>
+                <AuthorizeView Roles="Admin">
+                    <Authorized>
+                        <a href="/admin/exams" class="btn btn-primary">Manage Exams</a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <p class="text-muted">Admin access required</p>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+</div>

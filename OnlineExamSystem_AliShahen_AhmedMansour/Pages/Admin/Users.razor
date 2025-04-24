@@ -1,0 +1,275 @@
+@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@attribute [Authorize(Roles = "Admin")]
+
+<h3>Manage Users</h3>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Add New User</h5>
+                <EditForm Model="@newUser" OnValidSubmit="@CreateUser">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="form-group mb-3">
+                        <label for="email">Email</label>
+                        <InputText id="email" @bind-Value="newUser.Email" class="form-control" />
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="firstName">First Name</label>
+                        <InputText type="text" id="firstName" @bind-Value="newUser.FirstName" class="form-control" />
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="lastName">Last Name</label>
+                        <InputText type="text" id="lastName" @bind-Value="newUser.LastName" class="form-control" />
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="password">Password</label>
+                        <InputText type="password" id="password" @bind-Value="newUser.Password" class="form-control" />
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label>
+                            <InputCheckbox @bind-Value="newUser.IsAdmin" />
+                            Is Admin
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Create User</button>
+                </EditForm>
+
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="alert @(isError ? "alert-danger" : "alert-success") mt-3">
+                        @message
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (users == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="users-table-container">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Roles</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in users)
+                    {
+                        <tr>
+                            <td>@user.Email</td>
+                            <td>
+                                @if (userRoles.TryGetValue(user.Id, out var roles))
+                                {
+                                    @roles
+                                }
+                                else
+                                {
+                                    <span>Loading...</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteUser(user)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="pagination-container">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <span>Items per page:</span>
+                <select class="form-select d-inline-block w-auto ms-2" value="@pageSize" @onchange="HandlePageSizeChange">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+            <div>
+                <nav>
+                    <ul class="pagination mb-0">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => ChangePage(currentPage - 1)" disabled="@(currentPage == 1)">Previous</button>
+                        </li>
+                        @{
+                            var startPage = Math.Max(1, currentPage - 2);
+                            var endPage = Math.Min(startPage + 4, totalPages);
+                            if (endPage - startPage < 4 && startPage > 1)
+                            {
+                                startPage = Math.Max(1, endPage - 4);
+                            }
+                        }
+                        @for (int i = startPage; i <= endPage; i++)
+                        {
+                            var pageNumber = i;
+                            <li class="page-item @(pageNumber == currentPage ? "active" : "")">
+                                <button class="page-link" @onclick="() => ChangePage(pageNumber)">@i</button>
+                            </li>
+                        }
+                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => ChangePage(currentPage + 1)" disabled="@(currentPage == totalPages)">Next</button>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ApplicationUser> users;
+    private NewUserModel newUser = new();
+    private string message;
+    private bool isError;
+    private Dictionary<string, string> userRoles = new();
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalUsers;
+    private int totalPages => (int)Math.Ceiling(totalUsers / (double)pageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+        await EnsureAdminRoleExists();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        // Get total count for pagination
+        totalUsers = await UserManager.Users.CountAsync();
+
+        // Ensure current page is valid
+        if (currentPage > totalPages)
+        {
+            currentPage = totalPages > 0 ? totalPages : 1;
+        }
+
+        // Get paginated users
+        users = await UserManager.Users
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        // Load roles for the current page only
+        await LoadUserRoles();
+    }
+
+    private async Task LoadUserRoles()
+    {
+        userRoles.Clear();
+        foreach (var user in users)
+        {
+            var roles = await UserManager.GetRolesAsync(user);
+            userRoles[user.Id] = string.Join(", ", roles);
+        }
+    }
+
+    private async Task EnsureAdminRoleExists()
+    {
+        if (!await RoleManager.RoleExistsAsync("Admin"))
+        {
+            await RoleManager.CreateAsync(new IdentityRole("Admin"));
+        }
+    }
+
+    private async Task CreateUser()
+    {
+        var user = new ApplicationUser { UserName = newUser.Email, Email = newUser.Email,
+            FirstName = newUser.FirstName, LastName = newUser.LastName };
+        var result = await UserManager.CreateAsync(user, newUser.Password);
+
+        if (result.Succeeded)
+        {
+            if (newUser.IsAdmin)
+            {
+                await UserManager.AddToRoleAsync(user, "Admin");
+            }
+
+            message = "User created successfully.";
+            isError = false;
+            newUser = new();
+            await LoadUsersAsync();
+        }
+        else
+        {
+            message = string.Join(", ", result.Errors.Select(e => e.Description));
+            isError = true;
+        }
+    }
+
+    private async Task DeleteUser(ApplicationUser user)
+    {
+        var result = await UserManager.DeleteAsync(user);
+        if (result.Succeeded)
+        {
+            await LoadUsersAsync();
+        }
+    }
+
+    private async Task ChangePage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            await LoadUsersAsync();
+        }
+    }
+
+    private async Task HandlePageSizeChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value.ToString(), out int newSize))
+        {
+            pageSize = newSize;
+            currentPage = 1; // Reset to first page
+            await LoadUsersAsync();
+        }
+    }
+
+    private class NewUserModel
+    {
+        [Required]
+        [StringLength(50)]
+        public string FirstName { get; set; }
+
+        [Required]
+        [StringLength(50)]
+        public string LastName { get; set; }
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; }
+
+        [Required]
+        [StringLength(100, MinimumLength = 6)]
+        public string Password { get; set; }
+
+        public bool IsAdmin { get; set; }
+    }
+}

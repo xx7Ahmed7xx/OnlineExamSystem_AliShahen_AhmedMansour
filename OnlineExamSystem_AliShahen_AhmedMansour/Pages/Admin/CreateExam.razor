@@ -1,0 +1,69 @@
+@page "/admin/exams/create"
+@using Microsoft.AspNetCore.Authorization
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = "Admin")]
+
+<h3>Create New Exam</h3>
+
+<div class="row">
+    <div class="col-md-6">
+        <EditForm Model="@exam" OnValidSubmit="@HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-group mb-3">
+                <label for="title">Title</label>
+                <InputText id="title" @bind-Value="exam.Title" class="form-control" />
+                <ValidationMessage For="@(() => exam.Title)" />
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="description">Description</label>
+                <InputTextArea id="description" @bind-Value="exam.Description" class="form-control" rows="3" />
+                <ValidationMessage For="@(() => exam.Description)" />
+            </div>
+
+            <div class="form-group mb-3">
+                <label>
+                    <InputCheckbox @bind-Value="exam.IsActive" />
+                    Active
+                </label>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="totalQuestions">Total Questions</label>
+                <InputNumber id="totalQuestions" @bind-Value="exam.TotalQuestions" class="form-control" />
+                <ValidationMessage For="@(() => exam.TotalQuestions)" />
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="passingPercentage">Passing Percentage</label>
+                <InputNumber id="passingPercentage" @bind-Value="exam.PassingPercentage" class="form-control" />
+                <ValidationMessage For="@(() => exam.PassingPercentage)" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create Exam</button>
+            <a href="/admin/exams" class="btn btn-secondary">Cancel</a>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private Exam exam = new Exam
+    {
+        CreatedDate = DateTime.Now,
+        PassingPercentage = 60,
+        IsActive = true,
+        TotalQuestions = 1
+    };
+
+    private async Task HandleValidSubmit()
+    {
+        Context.Exams.Add(exam);
+        await Context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/admin/exams");
+    }
+} 

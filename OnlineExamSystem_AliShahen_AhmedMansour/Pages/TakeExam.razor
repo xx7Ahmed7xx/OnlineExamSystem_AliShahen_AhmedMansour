@@ -1,0 +1,199 @@
+@page "/exam/{ExamId:int}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@using System.Security.Claims
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@attribute [Authorize]
+
+<h3>@exam?.Title</h3>
+
+@if (exam == null)
+{
+    <p>Loading...</p>
+}
+else if (exam.Questions == null || !exam.Questions.Any())
+{
+    <p>This exam has no questions.</p>
+}
+else if (examCompleted)
+{
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title">Exam Results</h4>
+            <div class="alert @(hasPassed ? "alert-success" : "alert-danger")">
+                <h5>@(hasPassed ? "Congratulations! You passed!" : "Sorry, you did not pass.")</h5>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <p>Total Questions: @exam.Questions.Count</p>
+                    <p>Correct Answers: @correctAnswers</p>
+                    <p>Score: @score%</p>
+                    <p>Required to Pass: @exam.PassingPercentage%</p>
+                </div>
+            </div>
+            <a href="/exams" class="btn btn-primary">Back to Exams</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <h5>Question @(currentQuestionIndex + 1) of @exam.Questions.Count</h5>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: @(((currentQuestionIndex + 1) * 100) / exam.Questions.Count)%">
+                </div>
+            </div>
+
+            <div class="question mb-4">
+                <h6>@currentQuestion.Title</h6>
+                <div class="list-group">
+                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionA ? "active" : "")"
+                            @onclick="() => SelectAnswer(currentQuestion.OptionA)">
+                        A. @currentQuestion.OptionA
+                    </button>
+                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionB ? "active" : "")"
+                            @onclick="() => SelectAnswer(currentQuestion.OptionB)">
+                        B. @currentQuestion.OptionB
+                    </button>
+                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionC ? "active" : "")"
+                            @onclick="() => SelectAnswer(currentQuestion.OptionC)">
+                        C. @currentQuestion.OptionC
+                    </button>
+                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionD ? "active" : "")"
+                            @onclick="() => SelectAnswer(currentQuestion.OptionD)">
+                        D. @currentQuestion.OptionD
+                    </button>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <button class="btn btn-secondary" 
+                        @onclick="PreviousQuestion" 
+                        disabled="@(currentQuestionIndex == 0)">
+                    Previous
+                </button>
+                
+                @if (currentQuestionIndex == exam.Questions.Count - 1)
+                {
+                    <button class="btn btn-primary" 
+                            @onclick="SubmitExam"
+                            disabled="@(!answers.ContainsKey(currentQuestion.Id))">
+                        Submit Exam
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" 
+                            @onclick="NextQuestion"
+                            disabled="@(!answers.ContainsKey(currentQuestion.Id))">
+                        Next
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int ExamId { get; set; }
+
+    private Exam exam;
+    private Question currentQuestion => exam?.Questions?.ElementAt(currentQuestionIndex);
+    private int currentQuestionIndex = 0;
+    private Dictionary<int, string> answers = new Dictionary<int, string>();
+    private string selectedAnswer;
+    private bool examCompleted;
+    private int correctAnswers;
+    private double score;
+    private bool hasPassed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        exam = await Context.Exams
+            .Include(e => e.Questions)
+            .FirstOrDefaultAsync(e => e.Id == ExamId);
+
+        if (exam == null)
+        {
+            NavigationManager.NavigateTo("/exams");
+            return;
+        }
+
+        // Check if user has already taken this exam
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userEmail = user.FindFirst(ClaimTypes.Email)?.Value;
+
+        var existingAttempt = await Context.UserExams
+            .FirstOrDefaultAsync(ue => ue.ExamId == ExamId && ue.UserId == userEmail);
+
+        if (existingAttempt != null)
+        {
+            NavigationManager.NavigateTo("/my-results");
+            return;
+        }
+    }
+
+    private void SelectAnswer(string answer)
+    {
+        selectedAnswer = answer;
+        answers[currentQuestion.Id] = answer;
+    }
+
+    private void NextQuestion()
+    {
+        if (currentQuestionIndex < exam.Questions.Count - 1)
+        {
+            currentQuestionIndex++;
+            selectedAnswer = answers.ContainsKey(currentQuestion.Id) ? answers[currentQuestion.Id] : null;
+        }
+    }
+
+    private void PreviousQuestion()
+    {
+        if (currentQuestionIndex > 0)
+        {
+            currentQuestionIndex--;
+            selectedAnswer = answers.ContainsKey(currentQuestion.Id) ? answers[currentQuestion.Id] : null;
+        }
+    }
+
+    private async Task SubmitExam()
+    {
+        correctAnswers = exam.Questions
+            .Count(q => answers.ContainsKey(q.Id) && answers[q.Id] == q.CorrectAnswer);
+
+        score = Math.Round((double)correctAnswers / exam.Questions.Count * 100, 2);
+        hasPassed = score >= exam.PassingPercentage;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userEmail = user.FindFirst(ClaimTypes.Email)?.Value;
+        var userId = Context.Users.First(u => u.Email == userEmail).Id;
+        var userExam = new UserExam
+            {
+                UserId = userId,
+                ExamId = ExamId,
+                StartTime = DateTime.Now,
+                EndTime = DateTime.Now,
+                Score = (int)score,
+                CorrectAnswers = correctAnswers,
+                TotalQuestions = exam.Questions.Count,
+                HasPassed = hasPassed
+            };
+
+        Context.UserExams.Add(userExam);
+        await Context.SaveChangesAsync();
+
+        examCompleted = true;
+    }
+} 

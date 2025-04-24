@@ -1,0 +1,163 @@
+@page "/admin/exams/{ExamId:int}/questions"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = "Admin")]
+
+<h3>Manage Questions for @exam?.Title</h3>
+
+@if (exam == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="mb-3">
+        <button class="btn btn-primary" @onclick="() => showAddForm = true">Add New Question</button>
+    </div>
+
+    @if (showAddForm)
+    {
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Add New Question</h5>
+                        <EditForm Model="@newQuestion" OnValidSubmit="@HandleValidSubmit">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            <div class="form-group mb-3">
+                                <label for="title">Question Title</label>
+                                <InputText id="title" @bind-Value="newQuestion.Title" class="form-control" />
+                                <ValidationMessage For="@(() => newQuestion.Title)" />
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="optionA">Option A</label>
+                                <InputText id="optionA" @bind-Value="newQuestion.OptionA" class="form-control" />
+                                <ValidationMessage For="@(() => newQuestion.OptionA)" />
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="optionB">Option B</label>
+                                <InputText id="optionB" @bind-Value="newQuestion.OptionB" class="form-control" />
+                                <ValidationMessage For="@(() => newQuestion.OptionB)" />
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="optionC">Option C</label>
+                                <InputText id="optionC" @bind-Value="newQuestion.OptionC" class="form-control" />
+                                <ValidationMessage For="@(() => newQuestion.OptionC)" />
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="optionD">Option D</label>
+                                <InputText id="optionD" @bind-Value="newQuestion.OptionD" class="form-control" />
+                                <ValidationMessage For="@(() => newQuestion.OptionD)" />
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="correctAnswer">Correct Answer</label>
+                                <InputSelect id="correctAnswer" @bind-Value="newQuestion.CorrectAnswer" class="form-control">
+                                    <option value="">Select correct answer...</option>
+                                    <option value="A">Option A</option>
+                                    <option value="B">Option B</option>
+                                    <option value="C">Option C</option>
+                                    <option value="D">Option D</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => newQuestion.CorrectAnswer)" />
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Add Question</button>
+                            <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">Cancel</button>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (exam.Questions != null && exam.Questions.Any())
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Question</th>
+                    <th>Options</th>
+                    <th>Correct Answer</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var question in exam.Questions)
+                {
+                    <tr>
+                        <td>@question.Title</td>
+                        <td>
+                            <div>A: @question.OptionA</div>
+                            <div>B: @question.OptionB</div>
+                            <div>C: @question.OptionC</div>
+                            <div>D: @question.OptionD</div>
+                        </td>
+                        <td>@question.CorrectAnswer</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteQuestion(question)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>No questions added yet.</p>
+    }
+}
+
+@code {
+    [Parameter]
+    public int ExamId { get; set; }
+
+    private Exam exam;
+    private Question newQuestion = new Question();
+    private bool showAddForm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExam();
+    }
+
+    private async Task LoadExam()
+    {
+        exam = await Context.Exams
+            .Include(e => e.Questions)
+            .FirstOrDefaultAsync(e => e.Id == ExamId);
+
+        if (exam == null)
+        {
+            NavigationManager.NavigateTo("/admin/exams");
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        newQuestion.ExamId = ExamId;
+        Context.Questions.Add(newQuestion);
+        await Context.SaveChangesAsync();
+        
+        showAddForm = false;
+        newQuestion = new Question();
+        await LoadExam();
+    }
+
+    private async Task DeleteQuestion(Question question)
+    {
+        Context.Questions.Remove(question);
+        await Context.SaveChangesAsync();
+        await LoadExam();
+    }
+} 

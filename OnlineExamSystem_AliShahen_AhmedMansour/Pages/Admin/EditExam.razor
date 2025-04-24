@@ -1,0 +1,205 @@
+@page "/admin/exams/{Id:int}/edit"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = "Admin")]
+
+<div class="container mt-4">
+    <h3>Edit Exam</h3>
+
+    @if (exam == null)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <EditForm Model="@exam" OnValidSubmit="@HandleValidSubmit">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Title</label>
+                                <InputText id="title" @bind-Value="exam.Title" class="form-control" />
+                                <ValidationMessage For="@(() => exam.Title)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <InputTextArea id="description" @bind-Value="exam.Description" class="form-control" rows="3" />
+                                <ValidationMessage For="@(() => exam.Description)" />
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="duration" class="form-label">Duration (minutes)</label>
+                                    <InputNumber id="duration" @bind-Value="exam.DurationMinutes" class="form-control" min="1" max="480" />
+                                    <ValidationMessage For="@(() => exam.DurationMinutes)" />
+                                    <small class="form-text text-muted">Enter a value between 1 and 480 minutes</small>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label for="passingScore" class="form-label">Passing Percentage (%)</label>
+                                    <InputNumber disabled id="passingScore" @bind-Value="exam.PassingPercentage" class="form-control" min="0" max="100" />
+                                    <ValidationMessage For="@(() => exam.PassingPercentage)" />
+                                    <small class="form-text text-muted">Enter a value between 0 and 100</small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-check-label">
+                                    <InputCheckbox @bind-Value="exam.IsActive" /> Active
+                                </label>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(message))
+                            {
+                                <div class="alert @(isError ? "alert-danger" : "alert-success") mb-3">
+                                    @message
+                                </div>
+                            }
+
+                            <div class="d-flex justify-content-between">
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                                <button type="button" class="btn btn-secondary" @onclick="GoBack">Cancel</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Questions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid">
+                            <button class="btn btn-success mb-3" @onclick="() => NavigateToAddQuestion()">
+                                Add New Question
+                            </button>
+                        </div>
+
+                        @if (!exam.Questions.Any())
+                        {
+                            <p class="text-muted">No questions added yet.</p>
+                        }
+                        else
+                        {
+                            <div class="list-group">
+                                @foreach (var question in exam.Questions)
+                                {
+                                    <div class="list-group-item">
+                                        <div class="align-items-center">
+                                            <div class="row">
+                                                <span class="col-7 spanText">@question.Title</span>
+                                                <button class="col-2 btn btn-sm btn-outline-primary me-1" @onclick="() => EditQuestion(question.Id)">
+                                                    <i class="bi bi-pencil spanText">Edit</i>
+                                                </button>
+                                                <button class="col-2 btn btn-sm btn-outline-danger" @onclick="() => DeleteQuestion(question.Id)">
+                                                    <i class="bi bi-trash spanText">Delete</i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Exam exam;
+    private string message;
+    private bool isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExam();
+    }
+
+    private async Task LoadExam()
+    {
+        exam = await Context.Exams
+            .Include(e => e.Questions)
+            .FirstOrDefaultAsync(e => e.Id == Id);
+
+        if (exam.TotalQuestions == 0)
+            exam.TotalQuestions = exam.Questions.Count;
+
+        if (exam == null)
+        {
+            NavigationManager.NavigateTo("/admin/exams");
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            exam.UpdatedDate = DateTime.UtcNow;
+            Context.Exams.Update(exam);
+            await Context.SaveChangesAsync();
+            message = "Exam updated successfully.";
+            isError = false;
+        }
+        catch (Exception ex)
+        {
+            message = "Error updating exam: " + ex.Message;
+            isError = true;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/admin/exams");
+    }
+
+    private void NavigateToAddQuestion()
+    {
+        NavigationManager.NavigateTo($"/admin/exams/{Id}/questions/add");
+    }
+
+    private void EditQuestion(int questionId)
+    {
+        NavigationManager.NavigateTo($"/admin/exams/{Id}/questions/{questionId}/edit");
+    }
+
+    private async Task DeleteQuestion(int questionId)
+    {
+        var question = await Context.Questions.FindAsync(questionId);
+        if (question != null)
+        {
+            Context.Questions.Remove(question);
+            await Context.SaveChangesAsync();
+            await LoadExam();
+        }
+    }
+
+    private async Task AddQuestion()
+    {
+        exam.Questions.Add(new Question());
+        exam.TotalQuestions = exam.Questions.Count;
+        StateHasChanged();
+    }
+
+    private void RemoveQuestion(Question question)
+    {
+        exam.Questions.Remove(question);
+        exam.TotalQuestions = exam.Questions.Count;
+        StateHasChanged();
+    }
+} 

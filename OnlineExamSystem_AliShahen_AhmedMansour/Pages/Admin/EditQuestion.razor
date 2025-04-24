@@ -1,0 +1,139 @@
+@page "/admin/exams/{ExamId:int}/questions/{QuestionId:int}/edit"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using OnlineExamSystem_AliShahen_AhmedMansour.Models
+@using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@using System.ComponentModel.DataAnnotations
+@inject ApplicationDbContext Context
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = "Admin")]
+
+@if (question == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <h3>Edit Question</h3>
+
+    <div class="card">
+        <div class="card-body">
+            <EditForm Model="@question" OnValidSubmit="@HandleValidSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mb-3">
+                        @errorMessage
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Question Title</label>
+                    <InputTextArea @bind-Value="question.Title" class="form-control" rows="3" />
+                    <ValidationMessage For="@(() => question.Title)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Option A</label>
+                    <InputText @bind-Value="question.OptionA" class="form-control" />
+                    <ValidationMessage For="@(() => question.OptionA)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Option B</label>
+                    <InputText @bind-Value="question.OptionB" class="form-control" />
+                    <ValidationMessage For="@(() => question.OptionB)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Option C</label>
+                    <InputText @bind-Value="question.OptionC" class="form-control" />
+                    <ValidationMessage For="@(() => question.OptionC)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Option D</label>
+                    <InputText @bind-Value="question.OptionD" class="form-control" />
+                    <ValidationMessage For="@(() => question.OptionD)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Correct Answer</label>
+                    <InputSelect @bind-Value="question.CorrectAnswer" class="form-select">
+                        <option value="">Select correct answer...</option>
+                        <option value="A">Option A</option>
+                        <option value="B">Option B</option>
+                        <option value="C">Option C</option>
+                        <option value="D">Option D</option>
+                    </InputSelect>
+                    <ValidationMessage For="@(() => question.CorrectAnswer)" />
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int ExamId { get; set; }
+
+    [Parameter]
+    public int QuestionId { get; set; }
+
+    private Question question;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        question = await Context.Questions
+            .FirstOrDefaultAsync(q => q.Id == QuestionId && q.ExamId == ExamId);
+
+        if (question == null)
+        {
+            NavigationManager.NavigateTo($"/admin/exams/{ExamId}/questions");
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            // Validate that all options have text
+            if (string.IsNullOrWhiteSpace(question.OptionA) ||
+                string.IsNullOrWhiteSpace(question.OptionB) ||
+                string.IsNullOrWhiteSpace(question.OptionC) ||
+                string.IsNullOrWhiteSpace(question.OptionD))
+            {
+                errorMessage = "All options must have text";
+                return;
+            }
+
+            // Validate correct answer is selected
+            if (string.IsNullOrWhiteSpace(question.CorrectAnswer))
+            {
+                errorMessage = "Please select the correct answer";
+                return;
+            }
+
+            Context.Questions.Update(question);
+            await Context.SaveChangesAsync();
+            NavigationManager.NavigateTo($"/admin/exams/{ExamId}/questions");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error saving question: " + ex.Message;
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo($"/admin/exams/{ExamId}/questions");
+    }
+} 
