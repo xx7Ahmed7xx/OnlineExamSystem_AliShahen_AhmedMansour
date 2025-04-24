@@ -55,22 +55,14 @@ else
             <div class="question mb-4">
                 <h6>@currentQuestion.Title</h6>
                 <div class="list-group">
-                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionA ? "active" : "")"
-                            @onclick="() => SelectAnswer(currentQuestion.OptionA)">
-                        A. @currentQuestion.OptionA
-                    </button>
-                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionB ? "active" : "")"
-                            @onclick="() => SelectAnswer(currentQuestion.OptionB)">
-                        B. @currentQuestion.OptionB
-                    </button>
-                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionC ? "active" : "")"
-                            @onclick="() => SelectAnswer(currentQuestion.OptionC)">
-                        C. @currentQuestion.OptionC
-                    </button>
-                    <button class="list-group-item list-group-item-action @(selectedAnswer == currentQuestion.OptionD ? "active" : "")"
-                            @onclick="() => SelectAnswer(currentQuestion.OptionD)">
-                        D. @currentQuestion.OptionD
-                    </button>
+                    @foreach (var (label, value) in Options)
+                    {
+                        var fullOption = $"{label}. {value}";
+                        <button class="list-group-item list-group-item-action @(selectedAnswer == fullOption ? "active" : "")"
+                                @onclick="() => SelectAnswer(fullOption)">
+                            @fullOption
+                        </button>
+                    }
                 </div>
             </div>
 
@@ -116,6 +108,14 @@ else
     private double score;
     private bool hasPassed;
 
+    private List<(string Label, string Value)> Options => new()
+    {
+        ("A", currentQuestion.OptionA),
+        ("B", currentQuestion.OptionB),
+        ("C", currentQuestion.OptionC),
+        ("D", currentQuestion.OptionD)
+    };
+
     protected override async Task OnInitializedAsync()
     {
         exam = await Context.Exams
@@ -132,11 +132,12 @@ else
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         var userEmail = user.FindFirst(ClaimTypes.Email)?.Value;
+        var userId = Context.Users.First(u => u.Email == userEmail).Id;
 
-        var existingAttempt = await Context.UserExams
-            .FirstOrDefaultAsync(ue => ue.ExamId == ExamId && ue.UserId == userEmail);
+        var attemptCount = await Context.UserExams
+            .CountAsync(ue => ue.ExamId == ExamId && ue.UserId == userId);
 
-        if (existingAttempt != null)
+        if (attemptCount >= exam.MaxAttempts)
         {
             NavigationManager.NavigateTo("/my-results");
             return;
@@ -146,7 +147,8 @@ else
     private void SelectAnswer(string answer)
     {
         selectedAnswer = answer;
-        answers[currentQuestion.Id] = answer;
+        string letter = answer.Split('.')[0].Trim();
+        answers[currentQuestion.Id] = letter;
     }
 
     private void NextQuestion()
@@ -154,7 +156,15 @@ else
         if (currentQuestionIndex < exam.Questions.Count - 1)
         {
             currentQuestionIndex++;
-            selectedAnswer = answers.ContainsKey(currentQuestion.Id) ? answers[currentQuestion.Id] : null;
+            if (answers.ContainsKey(currentQuestion.Id))
+            {
+                string letter = answers[currentQuestion.Id];
+                selectedAnswer = $"{letter}. {GetOptionByLetter(letter)}";
+            }
+            else
+            {
+                selectedAnswer = null;
+            }
         }
     }
 
@@ -163,14 +173,35 @@ else
         if (currentQuestionIndex > 0)
         {
             currentQuestionIndex--;
-            selectedAnswer = answers.ContainsKey(currentQuestion.Id) ? answers[currentQuestion.Id] : null;
+            if (answers.ContainsKey(currentQuestion.Id))
+            {
+                string letter = answers[currentQuestion.Id];
+                selectedAnswer = $"{letter}. {GetOptionByLetter(letter)}";
+            }
+            else
+            {
+                selectedAnswer = null;
+            }
         }
+    }
+
+    private string GetOptionByLetter(string letter)
+    {
+        return letter switch
+        {
+            "A" => currentQuestion.OptionA,
+            "B" => currentQuestion.OptionB,
+            "C" => currentQuestion.OptionC,
+            "D" => currentQuestion.OptionD,
+            _ => null
+        };
     }
 
     private async Task SubmitExam()
     {
         correctAnswers = exam.Questions
-            .Count(q => answers.ContainsKey(q.Id) && answers[q.Id] == q.CorrectAnswer);
+            .Count(q => answers.ContainsKey(q.Id) && 
+                   answers[q.Id] == q.CorrectAnswer);
 
         score = Math.Round((double)correctAnswers / exam.Questions.Count * 100, 2);
         hasPassed = score >= exam.PassingPercentage;

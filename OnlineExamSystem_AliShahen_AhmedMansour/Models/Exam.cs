@@ -38,6 +38,10 @@ namespace OnlineExamSystem_AliShahen_AhmedMansour.Models
         [Range(1, int.MaxValue)]
         public int TotalQuestions { get; set; }
 
+        [Required]
+        [Range(1, 10)]
+        public int MaxAttempts { get; set; } = 1;  // Default to 1 attempt, max 10 attempts
+
         // Navigation properties
         public virtual ICollection<Question> Questions { get; set; } = new List<Question>();
         public virtual ICollection<UserExam> UserExams { get; set; } = new List<UserExam>();

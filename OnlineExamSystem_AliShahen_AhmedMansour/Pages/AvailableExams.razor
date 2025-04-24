@@ -3,8 +3,10 @@
 @using Microsoft.EntityFrameworkCore
 @using OnlineExamSystem_AliShahen_AhmedMansour.Models
 @using OnlineExamSystem_AliShahen_AhmedMansour.Data
+@using System.Security.Claims
 @inject ApplicationDbContext Context
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @attribute [Authorize]
 
 <h3>Available Exams</h3>
@@ -22,6 +24,7 @@ else
     <div class="row">
         @foreach (var exam in exams)
         {
+            var attemptsRemaining = exam.MaxAttempts - (userAttempts.ContainsKey(exam.Id) ? userAttempts[exam.Id] : 0);
             <div class="col-md-4 mb-4">
                 <div class="card">
                     <div class="card-body">
@@ -32,9 +35,17 @@ else
                                 Questions: @exam.Questions?.Count
                                 <br />
                                 Passing Score: @exam.PassingPercentage%
+                                <br />
+                                Attempts Allowed: @exam.MaxAttempts
+                                <br />
+                                Attempts Remaining: @attemptsRemaining
                             </small>
                         </p>
-                        <button class="btn btn-primary" @onclick="() => StartExam(exam.Id)">Start Exam</button>
+                        <button class="btn btn-primary" 
+                                @onclick="() => StartExam(exam.Id)"
+                                disabled="@(attemptsRemaining <= 0)">
+                            @(attemptsRemaining > 0 ? "Start Exam" : "No Attempts Remaining")
+                        </button>
                     </div>
                 </div>
             </div>
@@ -44,13 +55,28 @@ else
 
 @code {
     private List<Exam> exams;
+    private Dictionary<int, int> userAttempts = new();
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userEmail = user.FindFirst(ClaimTypes.Email)?.Value;
+        var userId = Context.Users.First(u => u.Email == userEmail).Id;
+
         exams = await Context.Exams
             .Include(e => e.Questions)
             .Where(e => e.IsActive)
             .ToListAsync();
+
+        // Get attempt counts for each exam
+        var attempts = await Context.UserExams
+            .Where(ue => ue.UserId == userId)
+            .GroupBy(ue => ue.ExamId)
+            .Select(g => new { ExamId = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        userAttempts = attempts.ToDictionary(a => a.ExamId, a => a.Count);
     }
 
     private void StartExam(int examId)

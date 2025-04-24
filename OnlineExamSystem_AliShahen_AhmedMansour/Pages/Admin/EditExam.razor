@@ -52,6 +52,13 @@
                                 </div>
                             </div>
 
+                            <div class="form-group mb-3">
+                                <label for="maxAttempts">Maximum Attempts Allowed</label>
+                                <InputNumber id="maxAttempts" @bind-Value="exam.MaxAttempts" class="form-control" min="1" max="10" />
+                                <ValidationMessage For="@(() => exam.MaxAttempts)" />
+                                <small class="form-text text-muted">Number of times a user can take this exam (1-10)</small>
+                            </div>
+
                             <div class="mb-3">
                                 <label class="form-check-label">
                                     <InputCheckbox @bind-Value="exam.IsActive" /> Active
